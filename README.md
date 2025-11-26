@@ -1,4 +1,4 @@
-# Jupyter IFrame Upload
+# Jupyter File Drag & Drop Widget
 
 A drag-and-drop file upload widget for JupyterLab.
 
