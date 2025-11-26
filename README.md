@@ -67,6 +67,36 @@ fd.remove("Test")      # Remove zone and clear data
 
 **Properties:**
 - `datasets` → Dict of `{label: {'filename': str, 'df': DataFrame}}`
+- `ui` → Widget for embedding in containers (see below)
+
+### Embedding in Containers
+
+Use the `.ui` property to embed FileDrop in ipywidgets containers like Accordion, Tab, or VBox:
+
+```python
+import ipywidgets as widgets
+from jupyter_iframe_upload import FileDrop
+
+# Accordion
+fd = FileDrop("Train", "Test")
+accordion = widgets.Accordion(children=[fd.ui])
+accordion.set_title(0, "Data Upload")
+display(accordion)
+
+# Tab
+fd1 = FileDrop("CSV Files")
+fd2 = FileDrop("Excel Files")
+tab = widgets.Tab(children=[fd1.ui, fd2.ui])
+tab.set_title(0, "CSV")
+tab.set_title(1, "Excel")
+display(tab)
+
+# VBox with other widgets
+fd = FileDrop("Upload")
+btn = widgets.Button(description="Process")
+vbox = widgets.VBox([fd.ui, btn])
+display(vbox)
+```
 
 ### IFrameDropWidget (Low-level)
 

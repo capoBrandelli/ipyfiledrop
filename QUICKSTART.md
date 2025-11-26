@@ -45,6 +45,19 @@ fd.add("Validation")   # Add new drop zone
 fd.remove("Test")      # Remove zone and data
 ```
 
+## Embedding in Containers
+
+Use `.ui` to embed in Accordion, Tab, or other containers:
+
+```python
+import ipywidgets as widgets
+
+fd = FileDrop("Train", "Test")
+accordion = widgets.Accordion(children=[fd.ui])
+accordion.set_title(0, "Data Upload")
+display(accordion)
+```
+
 ## Full Documentation
 
 See [README.md](README.md) for complete API reference and troubleshooting.

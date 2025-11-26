@@ -40,11 +40,14 @@ class FileDrop:
         self._widgets = {}      # label -> IFrameDropWidget
         self._datasets = {}     # label -> {'filename': str, 'df': DataFrame}
         self._labels = []       # Ordered list of labels
-        self._output = widgets.Output()
+        self._container = widgets.VBox()  # Main container for embedding
 
         # Create initial widgets
         for label in labels:
             self._add_widget(label)
+
+        # Build initial UI
+        self._update_ui()
 
     def _add_widget(self, label):
         """Create IFrameDropWidget for a label with callback."""
@@ -56,26 +59,42 @@ class FileDrop:
         self._widgets[label] = widget
         self._labels.append(label)
 
-    def _render(self):
-        """Render all drop zones in horizontal layout."""
-        with self._output:
-            self._output.clear_output(wait=True)
+    def _build_ui(self):
+        """Build and return the widget hierarchy."""
+        if not self._widgets:
+            return widgets.HTML("<p>No drop zones</p>")
 
-            if not self._widgets:
-                display(widgets.HTML("<p>No drop zones</p>"))
-                return
+        # Create VBox for each label with header
+        boxes = []
+        for label in self._labels:
+            if label in self._widgets:
+                header = widgets.HTML(f"<h4 style='margin:0 0 5px 0'>{label}</h4>")
+                box = widgets.VBox([header, self._widgets[label].widget])
+                boxes.append(box)
 
-            # Create VBox for each label with header
-            boxes = []
-            for label in self._labels:
-                if label in self._widgets:
-                    header = widgets.HTML(f"<h4 style='margin:0 0 5px 0'>{label}</h4>")
-                    box = widgets.VBox([header, self._widgets[label].widget])
-                    boxes.append(box)
+        return widgets.HBox(boxes)
 
-            # Display horizontally
-            hbox = widgets.HBox(boxes)
-            display(hbox)
+    def _update_ui(self):
+        """Update the container's children."""
+        self._container.children = [self._build_ui()]
+
+    @property
+    def ui(self):
+        """
+        Return the widget for embedding in containers.
+
+        Use this property when embedding FileDrop in ipywidgets containers
+        like Accordion, Tab, VBox, etc.
+
+        Example:
+            fd = FileDrop("Train", "Test")
+            accordion = widgets.Accordion(children=[fd.ui])
+            display(accordion)
+
+        Returns:
+            widgets.VBox: The embeddable widget container
+        """
+        return self._container
 
     def display(self):
         """
@@ -84,8 +103,7 @@ class FileDrop:
         Returns:
             FileDrop: self for method chaining
         """
-        self._render()
-        display(self._output)
+        display(self._container)
         return self
 
     def add(self, label):
@@ -103,7 +121,7 @@ class FileDrop:
             return self
 
         self._add_widget(label)
-        self._render()
+        self._update_ui()
         return self
 
     def remove(self, label):
@@ -123,7 +141,7 @@ class FileDrop:
         del self._widgets[label]
         self._datasets.pop(label, None)
         self._labels.remove(label)
-        self._render()
+        self._update_ui()
         return self
 
     def __getitem__(self, label):
