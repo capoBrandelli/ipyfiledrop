@@ -26,7 +26,7 @@ Drop a file onto the widget, then access your DataFrame:
 df = fd["My Data"]
 ```
 
-**Supported formats:** CSV, Excel (.xlsx, .xlsm, .xls), Feather, Parquet
+**Supported formats:** CSV, Excel (.xlsx, .xlsm, .xls), Feather, Parquet, ZIP, TAR.GZ
 
 **Multi-sheet Excel:** A dropdown appears to select sheets. Access all sheets with:
 ```python
@@ -35,7 +35,7 @@ all_sheets = fd.get_all_sheets("My Data")  # Dict[str, DataFrame]
 
 ---
 
-## Multiple Files
+## Multiple Drop Zones
 
 ```python
 fd = FileDrop("Train", "Test").display()
@@ -44,6 +44,26 @@ fd = FileDrop("Train", "Test").display()
 train_df = fd["Train"]
 test_df = fd["Test"]
 ```
+
+## Multi-File Drop & Archives
+
+Drop multiple files at once or drop a .zip/.tar.gz archive:
+
+```python
+# Accumulate mode - files stack up instead of replacing
+fd = FileDrop("Data", retain_data=True).display()
+
+# Drop multiple files or an archive - all are loaded
+all_data = fd.get_all_data("Data")  # Dict[str, DataFrame]
+
+# Check for failed imports
+failed = fd.get_failed_imports("Data")
+
+# Clear and start fresh
+fd.clear("Data")
+```
+
+**Limits:** 200MB per file, 50 files per drop, 1000 files total
 
 ## Dynamic Add/Remove
 

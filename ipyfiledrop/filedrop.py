@@ -6,7 +6,7 @@ global listener installation and DataFrame access.
 """
 
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 import pandas as pd
 import ipywidgets as widgets
 from IPython.display import display
@@ -21,28 +21,41 @@ class FileDrop:
 
     Creates multiple drop zones with automatic global listener installation.
     Files are automatically parsed to pandas DataFrames.
+    
+    Supports:
+    - Multiple sequential file drops (with retain_data=True)
+    - Archive extraction (.zip, .tar.gz, .tgz)
+    - CSV, Excel, Feather, Parquet files
+    - Up to 1000 files total, 200MB per drop
 
     Example:
+        # Basic usage - each drop replaces previous data
         fd = FileDrop("Train", "Test").display()
-        df_train = fd["Train"]  # Returns DataFrame or None
-        fd.add("Validation")
-        fd.remove("Test")
+        df_train = fd["Train"]  # Returns selected DataFrame or None
         
-        # Multi-sheet Excel support
-        all_sheets = fd.get_all_sheets("Train")
-        fd.select_sheet("Train", "Sheet2")
+        # Multi-file mode - files accumulate
+        fd = FileDrop("Data", retain_data=True).display()
+        # Drop file1.csv, then file2.csv - both are kept
+        all_data = fd.get_all_data("Data")  # Dict of all DataFrames
+        fd.clear("Data")  # Clear and start fresh
+        
+        # Check for failed imports (from archives)
+        failed = fd.get_failed_imports("Data")
     """
 
-    def __init__(self, *labels):
+    def __init__(self, *labels, retain_data: bool = False):
         """
         Initialize FileDrop with named drop zones.
 
         Args:
             *labels: Variable number of drop zone labels (e.g., "Train", "Test")
+            retain_data: If True, accumulate files in each zone (show Clear button).
+                        If False (default), each drop replaces previous data.
         """
         # Auto-install global listener (safe if already installed)
         IFrameDropWidget.install_global_listener()
 
+        self._retain_data = retain_data
         self._widgets = {}      # label -> IFrameDropWidget
         self._datasets = {}     # label -> {'filename': str, 'data': Dict[str, DataFrame], 'selected': str}
         self._labels = []       # Ordered list of labels
@@ -58,14 +71,16 @@ class FileDrop:
     def _add_widget(self, label):
         """Create IFrameDropWidget for a label with callback."""
         def on_data_ready(filename, data):
+            # Update datasets - store reference to widget's accumulated data
+            widget_data = self._widgets[label].data
             self._datasets[label] = {
-                'filename': filename, 
-                'data': data,
-                'selected': list(data.keys())[0]
+                'filename': filename,
+                'data': widget_data,
+                'selected': self._widgets[label].selected_key
             }
-            logger.debug(f"FileDrop: Loaded '{filename}' into '{label}' ({len(data)} sheet(s))")
+            logger.debug(f"FileDrop: Loaded '{filename}' into '{label}' ({len(data)} new, {len(widget_data)} total)")
 
-        widget = IFrameDropWidget(on_data_ready=on_data_ready)
+        widget = IFrameDropWidget(on_data_ready=on_data_ready, retain_data=self._retain_data)
         self._widgets[label] = widget
         self._labels.append(label)
 
@@ -154,6 +169,26 @@ class FileDrop:
         self._update_ui()
         return self
 
+    def clear(self, label: str) -> 'FileDrop':
+        """
+        Clear all data for a specific drop zone.
+        
+        Args:
+            label: Name of the drop zone to clear
+            
+        Returns:
+            FileDrop: self for method chaining
+            
+        Raises:
+            KeyError: If label doesn't exist
+        """
+        if label not in self._widgets:
+            raise KeyError(f"Label '{label}' not found")
+        
+        self._widgets[label].clear_data()
+        self._datasets.pop(label, None)
+        return self
+
     def __getitem__(self, label):
         """
         Get selected DataFrame by label.
@@ -172,31 +207,62 @@ class FileDrop:
         # Read directly from widget to reflect dropdown selection
         return self._widgets[label].selected_dataframe
 
-    def get_all_sheets(self, label) -> Optional[Dict[str, pd.DataFrame]]:
+    def get_all_data(self, label: str) -> Dict[str, pd.DataFrame]:
         """
-        Get all DataFrames for a label (all sheets for Excel files).
-
+        Get all accumulated DataFrames for a label.
+        
         Args:
             label: Drop zone label
-
+            
         Returns:
-            Dict[str, DataFrame] or None if no file loaded
-
+            Dict[str, DataFrame] - all accumulated data (empty dict if none)
+            
         Raises:
             KeyError: If label doesn't exist
         """
         if label not in self._widgets:
             raise KeyError(f"Label '{label}' not found")
-        dataset = self._datasets.get(label)
-        return dataset['data'] if dataset else None
+        return self._widgets[label].data
 
-    def select_sheet(self, label: str, sheet_name: str) -> 'FileDrop':
+    def get_all_sheets(self, label) -> Optional[Dict[str, pd.DataFrame]]:
         """
-        Select a specific sheet for a label.
+        Get all DataFrames for a label. Alias for get_all_data().
 
         Args:
             label: Drop zone label
-            sheet_name: Name of sheet to select
+
+        Returns:
+            Dict[str, DataFrame] or empty dict if no file loaded
+
+        Raises:
+            KeyError: If label doesn't exist
+        """
+        return self.get_all_data(label)
+
+    def get_failed_imports(self, label: str) -> List[dict]:
+        """
+        Get list of failed imports for a label.
+        
+        Args:
+            label: Drop zone label
+            
+        Returns:
+            List of dicts: [{'filename': str, 'error': str}, ...]
+            
+        Raises:
+            KeyError: If label doesn't exist
+        """
+        if label not in self._widgets:
+            raise KeyError(f"Label '{label}' not found")
+        return self._widgets[label].failed_imports
+
+    def select_sheet(self, label: str, sheet_name: str) -> 'FileDrop':
+        """
+        Select a specific sheet/file for a label.
+
+        Args:
+            label: Drop zone label
+            sheet_name: Name of sheet/file to select
 
         Returns:
             FileDrop: self for method chaining
@@ -207,11 +273,12 @@ class FileDrop:
         """
         if label not in self._widgets:
             raise KeyError(f"Label '{label}' not found")
-        dataset = self._datasets.get(label)
-        if not dataset:
+        
+        widget_data = self._widgets[label].data
+        if not widget_data:
             raise ValueError(f"No data loaded for '{label}'")
-        if sheet_name not in dataset['data']:
-            raise ValueError(f"Sheet '{sheet_name}' not found. Available: {list(dataset['data'].keys())}")
+        if sheet_name not in widget_data:
+            raise ValueError(f"Key '{sheet_name}' not found. Available: {list(widget_data.keys())}")
         
         self._widgets[label]._selector.value = sheet_name
         return self
@@ -224,12 +291,24 @@ class FileDrop:
         Returns:
             dict: {label: {'filename': str, 'data': Dict[str, DataFrame], 'selected': str}} for loaded files
         """
-        return {k: {
-            'filename': v['filename'],
-            'data': {sk: sv.copy() for sk, sv in v['data'].items()},
-            'selected': self._widgets[k].selected_key or v['selected']
-        } for k, v in self._datasets.items()}
+        result = {}
+        for label in self._labels:
+            if label in self._widgets:
+                widget = self._widgets[label]
+                if widget.data:
+                    result[label] = {
+                        'filename': widget._current_filename,
+                        'data': {k: v.copy() for k, v in widget.data.items()},
+                        'selected': widget.selected_key
+                    }
+        return result
+
+    @property
+    def retain_data(self) -> bool:
+        """Return whether retain_data mode is enabled."""
+        return self._retain_data
 
     def __repr__(self):
-        loaded = [l for l in self._labels if l in self._datasets]
-        return f"FileDrop(labels={self._labels}, loaded={loaded})"
+        loaded = [l for l in self._labels if self._widgets.get(l, {}) and self._widgets[l].data]
+        mode = "retain" if self._retain_data else "replace"
+        return f"FileDrop(labels={self._labels}, loaded={loaded}, mode={mode})"

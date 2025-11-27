@@ -8,6 +8,7 @@ Screenshot*
 test_install/
 fix_clipboard.sh
 old/
+test*
 
 
 # Byte-compiled / optimized / DLL files

@@ -1,6 +1,12 @@
-# Jupyter File Drag & Drop Widget
+# ipyfiledrop
 
 A drag-and-drop file upload widget for JupyterLab.
+
+**Features:**
+- Drop single or multiple files at once
+- Archive support (.zip, .tar.gz) with automatic extraction
+- Multi-sheet Excel support with dropdown selector
+- Accumulate mode for building datasets incrementally
 
 ## Installation
 
@@ -32,6 +38,22 @@ fd.add("Dataset C")
 fd.remove("Dataset A")
 ```
 
+### Multi-File Drop & Archives
+
+```python
+# Accumulate mode - files stack up instead of replacing
+fd = FileDrop("Data", retain_data=True).display()
+
+# Drop multiple files at once, or drop a .zip/.tar.gz archive
+# All files are extracted and accumulated
+
+# Access all loaded data
+all_data = fd.get_all_data("Data")  # Dict[str, DataFrame]
+
+# Clear accumulated data
+fd.clear("Data")
+```
+
 See [QUICKSTART.md](QUICKSTART.md) for a minimal getting-started guide.
 
 ## How it works
@@ -59,19 +81,26 @@ fd.add("Extra")        # Add new drop zone
 fd.remove("Test")      # Remove zone and clear data
 ```
 
+**Constructor:**
+- `FileDrop(*labels, retain_data=False)` → Create with named drop zones
+  - `retain_data=True`: Files accumulate (useful for multi-file drops)
+  - `retain_data=False` (default): Each drop replaces previous data
+
 **Methods:**
 - `display()` → Returns self for chaining
 - `add(label)` → Add drop zone, returns self
 - `remove(label)` → Remove zone and data, returns self
-- `__getitem__(label)` → Get DataFrame by label
+- `clear(label)` → Clear all data for a zone, returns self
+- `__getitem__(label)` → Get selected DataFrame by label
+- `get_all_data(label)` → Get all DataFrames as Dict[str, DataFrame]
+- `get_all_sheets(label)` → Alias for get_all_data()
+- `select_sheet(label, sheet_name)` → Select a specific sheet/file
+- `get_failed_imports(label)` → Get list of files that failed to import
 
 **Properties:**
 - `datasets` → Dict of `{label: {'filename': str, 'data': Dict[str, DataFrame], 'selected': str}}`
 - `ui` → Widget for embedding in containers (see below)
-
-**Multi-sheet Excel methods:**
-- `get_all_sheets(label)` → Get all sheets as Dict[str, DataFrame]
-- `select_sheet(label, sheet_name)` → Select a specific sheet
+- `retain_data` → Whether accumulate mode is enabled
 
 ### Embedding in Containers
 
@@ -115,16 +144,25 @@ IFrameDropWidget.install_global_listener()
 # Create widget with callback (receives Dict of DataFrames)
 def handle_data(filename, data):
     # data is Dict[str, DataFrame] - keys are sheet names for Excel, 'data' for others
-    for sheet_name, df in data.items():
-        print(f"Loaded: {filename}[{sheet_name}], shape: {df.shape}")
+    for key, df in data.items():
+        print(f"Loaded: {filename}[{key}], shape: {df.shape}")
 
+# Single file mode (default) - each drop replaces previous
 widget = IFrameDropWidget(on_data_ready=handle_data)
+
+# Multi-file mode - files accumulate
+widget = IFrameDropWidget(on_data_ready=handle_data, retain_data=True)
+
 widget.display()
 
 # Access data via properties
-widget.data              # Dict[str, DataFrame] or None
+widget.data              # Dict[str, DataFrame] - all loaded data
 widget.selected_dataframe  # Currently selected DataFrame
-widget.sheet_names       # List of available sheet/data names
+widget.keys              # List of all data keys
+widget.failed_imports    # List of files that failed to import
+
+# Clear accumulated data
+widget.clear_data()
 ```
 
 **Note:** `install_global_listener()` must be called BEFORE creating widgets. FileDrop handles this automatically.
@@ -138,10 +176,15 @@ widget.sheet_names       # List of available sheet/data names
 | Excel (legacy) | `.xls` | xlrd (included) |
 | Feather | `.feather` | pyarrow (included) |
 | Parquet | `.parquet` | pyarrow (included) |
+| ZIP archive | `.zip` | (built-in) |
+| TAR archive | `.tar.gz`, `.tgz` | (built-in) |
 
-**Note:** Excel files with multiple sheets are fully supported. A dropdown selector appears to switch between sheets.
-
-- Maximum file size: 50MB
+**Notes:**
+- Excel files with multiple sheets are fully supported. A dropdown selector appears to switch between sheets.
+- Archives are automatically extracted; all supported files inside are loaded.
+- Maximum file size: 200MB per file
+- Maximum files per drop: 50 files
+- Maximum total files (retain_data=True): 1000 files
 - Files are processed in-memory (no disk writes)
 
 ## How It Works

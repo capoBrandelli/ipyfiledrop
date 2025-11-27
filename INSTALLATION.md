@@ -78,8 +78,13 @@ jupyter lab
 | Excel | `.xlsx`, `.xlsm`, `.xls` |
 | Feather | `.feather` |
 | Parquet | `.parquet` |
+| ZIP archive | `.zip` |
+| TAR archive | `.tar.gz`, `.tgz` |
 
-Multi-sheet Excel files are supported with a dropdown selector.
+- Multi-sheet Excel files are supported with a dropdown selector
+- Archives are automatically extracted; all supported files inside are loaded
+- Drop multiple files at once (up to 50 files per drop)
+- Max file size: 200MB per file
 
 ## Usage
 
@@ -98,6 +103,19 @@ test_df = fd["Test"]
 # For multi-sheet Excel files
 all_sheets = fd.get_all_sheets("Train")  # Dict[str, DataFrame]
 fd.select_sheet("Train", "Sheet2")       # Select specific sheet
+```
+
+### Multi-File Drop & Archives
+
+```python
+# Accumulate mode - drop multiple files or archives
+fd = FileDrop("Data", retain_data=True).display()
+
+# Access all loaded data
+all_data = fd.get_all_data("Data")  # Dict[str, DataFrame]
+
+# Clear accumulated data
+fd.clear("Data")
 ```
 
 ## Troubleshooting
