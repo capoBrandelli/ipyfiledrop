@@ -6,6 +6,8 @@ global listener installation and DataFrame access.
 """
 
 import logging
+from typing import Dict, Optional
+import pandas as pd
 import ipywidgets as widgets
 from IPython.display import display
 from .iframe_drop_widget import IFrameDropWidget
@@ -25,6 +27,10 @@ class FileDrop:
         df_train = fd["Train"]  # Returns DataFrame or None
         fd.add("Validation")
         fd.remove("Test")
+        
+        # Multi-sheet Excel support
+        all_sheets = fd.get_all_sheets("Train")
+        fd.select_sheet("Train", "Sheet2")
     """
 
     def __init__(self, *labels):
@@ -38,7 +44,7 @@ class FileDrop:
         IFrameDropWidget.install_global_listener()
 
         self._widgets = {}      # label -> IFrameDropWidget
-        self._datasets = {}     # label -> {'filename': str, 'df': DataFrame}
+        self._datasets = {}     # label -> {'filename': str, 'data': Dict[str, DataFrame], 'selected': str}
         self._labels = []       # Ordered list of labels
         self._container = widgets.VBox()  # Main container for embedding
 
@@ -51,11 +57,15 @@ class FileDrop:
 
     def _add_widget(self, label):
         """Create IFrameDropWidget for a label with callback."""
-        def on_dataframe_ready(filename, df):
-            self._datasets[label] = {'filename': filename, 'df': df}
-            logger.debug(f"FileDrop: Loaded '{filename}' into '{label}'")
+        def on_data_ready(filename, data):
+            self._datasets[label] = {
+                'filename': filename, 
+                'data': data,
+                'selected': list(data.keys())[0]
+            }
+            logger.debug(f"FileDrop: Loaded '{filename}' into '{label}' ({len(data)} sheet(s))")
 
-        widget = IFrameDropWidget(on_dataframe_ready=on_dataframe_ready)
+        widget = IFrameDropWidget(on_data_ready=on_data_ready)
         self._widgets[label] = widget
         self._labels.append(label)
 
@@ -146,7 +156,7 @@ class FileDrop:
 
     def __getitem__(self, label):
         """
-        Get DataFrame by label.
+        Get selected DataFrame by label.
 
         Args:
             label: Drop zone label
@@ -159,8 +169,52 @@ class FileDrop:
         """
         if label not in self._widgets:
             raise KeyError(f"Label '{label}' not found")
-        data = self._datasets.get(label)
-        return data['df'] if data else None
+        # Read directly from widget to reflect dropdown selection
+        return self._widgets[label].selected_dataframe
+
+    def get_all_sheets(self, label) -> Optional[Dict[str, pd.DataFrame]]:
+        """
+        Get all DataFrames for a label (all sheets for Excel files).
+
+        Args:
+            label: Drop zone label
+
+        Returns:
+            Dict[str, DataFrame] or None if no file loaded
+
+        Raises:
+            KeyError: If label doesn't exist
+        """
+        if label not in self._widgets:
+            raise KeyError(f"Label '{label}' not found")
+        dataset = self._datasets.get(label)
+        return dataset['data'] if dataset else None
+
+    def select_sheet(self, label: str, sheet_name: str) -> 'FileDrop':
+        """
+        Select a specific sheet for a label.
+
+        Args:
+            label: Drop zone label
+            sheet_name: Name of sheet to select
+
+        Returns:
+            FileDrop: self for method chaining
+
+        Raises:
+            KeyError: If label doesn't exist
+            ValueError: If no data loaded or sheet not found
+        """
+        if label not in self._widgets:
+            raise KeyError(f"Label '{label}' not found")
+        dataset = self._datasets.get(label)
+        if not dataset:
+            raise ValueError(f"No data loaded for '{label}'")
+        if sheet_name not in dataset['data']:
+            raise ValueError(f"Sheet '{sheet_name}' not found. Available: {list(dataset['data'].keys())}")
+        
+        self._widgets[label]._selector.value = sheet_name
+        return self
 
     @property
     def datasets(self):
@@ -168,9 +222,13 @@ class FileDrop:
         Get all loaded datasets.
 
         Returns:
-            dict: {label: {'filename': str, 'df': DataFrame}} for loaded files
+            dict: {label: {'filename': str, 'data': Dict[str, DataFrame], 'selected': str}} for loaded files
         """
-        return {k: v.copy() for k, v in self._datasets.items()}
+        return {k: {
+            'filename': v['filename'],
+            'data': {sk: sv.copy() for sk, sv in v['data'].items()},
+            'selected': self._widgets[k].selected_key or v['selected']
+        } for k, v in self._datasets.items()}
 
     def __repr__(self):
         loaded = [l for l in self._labels if l in self._datasets]

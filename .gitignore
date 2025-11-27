@@ -4,6 +4,10 @@ TODO.txt
 .claude/
 AGENT*
 agent*
+Screenshot*
+test_install/
+fix_clipboard.sh
+old/
 
 
 # Byte-compiled / optimized / DLL files

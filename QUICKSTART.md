@@ -11,7 +11,7 @@ pip install -e /path/to/filedrop
 ## 2. Import
 
 ```python
-from jupyter_iframe_upload import FileDrop
+from ipyfiledrop import FileDrop
 ```
 
 ## 3. Use
@@ -20,10 +20,17 @@ from jupyter_iframe_upload import FileDrop
 fd = FileDrop("My Data").display()
 ```
 
-Drop a CSV, XLSX, or XLSM file onto the widget, then access your DataFrame:
+Drop a file onto the widget, then access your DataFrame:
 
 ```python
 df = fd["My Data"]
+```
+
+**Supported formats:** CSV, Excel (.xlsx, .xlsm, .xls), Feather, Parquet
+
+**Multi-sheet Excel:** A dropdown appears to select sheets. Access all sheets with:
+```python
+all_sheets = fd.get_all_sheets("My Data")  # Dict[str, DataFrame]
 ```
 
 ---

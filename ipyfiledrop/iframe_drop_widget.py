@@ -7,7 +7,7 @@ by using an iframe to bypass Lumino's event interception.
 Files dropped in the iframe are read as base64 and sent to Python
 via postMessage -> parent JavaScript -> hidden ipywidget.
 
-Supported formats: CSV, XLSX, XLSM
+Supported formats: CSV, Excel (XLSX, XLSM, XLS), Feather, Parquet
 """
 
 import base64
@@ -16,7 +16,7 @@ import logging
 import pandas as pd
 import ipywidgets as widgets
 from IPython.display import display, Javascript
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional, Tuple, Dict
 
 # Simple logger - set level to DEBUG to see messages
 _logger = logging.getLogger(__name__)
@@ -31,22 +31,61 @@ class IFrameDropWidget:
     JupyterLab's Lumino event interception for drag-drop events.
 
     Usage:
-        # IMPORTANT: Call once at notebook startup
         IFrameDropWidget.install_global_listener()
 
-        def handle_data(filename, df):
-            print(f"Loaded {filename}: {df.shape}")
+        def handle_data(filename, data):
+            for sheet_name, df in data.items():
+                print(f"Loaded {filename}[{sheet_name}]: {df.shape}")
 
-        widget = IFrameDropWidget(on_dataframe_ready=handle_data)
+        widget = IFrameDropWidget(on_data_ready=handle_data)
         widget.display()
+        
+        all_sheets = widget.data
+        selected_df = widget.selected_dataframe
     """
 
-    ALLOWED_EXTENSIONS = {'.csv', '.xlsx', '.xlsm'}
+    ALLOWED_EXTENSIONS = {'.csv', '.xlsx', '.xlsm', '.xls', '.feather', '.parquet'}
     MAX_FILE_SIZE_MB = 50
 
     # Class-level counter for unique IDs and tracking if listener is installed
     _instance_counter = 0
     _global_listener_installed = False
+
+    @classmethod
+    def check_dependencies(cls) -> dict:
+        """Check if optional dependencies are available.
+        
+        Returns a dict with dependency status:
+        {
+            'pandas': {'available': True, 'version': '2.0.0', 'required_for': 'all file types'},
+            'openpyxl': {'available': True, 'version': '3.1.0', 'required_for': '.xlsx/.xlsm files'},
+            ...
+        }
+        
+        Usage:
+            deps = IFrameDropWidget.check_dependencies()
+            for name, info in deps.items():
+                status = "OK" if info['available'] else "MISSING"
+                print(f"{name}: {status} - needed for {info['required_for']}")
+        """
+        dependencies = {
+            'pandas': {'module': 'pandas', 'required_for': 'all file types'},
+            'openpyxl': {'module': 'openpyxl', 'required_for': '.xlsx/.xlsm files'},
+            'xlrd': {'module': 'xlrd', 'required_for': '.xls files'},
+            'pyarrow': {'module': 'pyarrow', 'required_for': '.feather/.parquet files'},
+        }
+        
+        results = {}
+        for name, info in dependencies.items():
+            try:
+                import importlib
+                mod = importlib.import_module(info['module'])
+                version = getattr(mod, '__version__', 'unknown')
+                results[name] = {'available': True, 'version': version, 'required_for': info['required_for']}
+            except ImportError:
+                results[name] = {'available': False, 'version': None, 'required_for': info['required_for']}
+        
+        return results
 
     @classmethod
     def install_global_listener(cls):
@@ -107,19 +146,28 @@ class IFrameDropWidget:
         cls._global_listener_installed = True
         log('Global listener installation triggered')
 
-    def __init__(self, on_dataframe_ready: Optional[Callable[[str, pd.DataFrame], None]] = None):
+    def __init__(self, on_dataframe_ready: Optional[Callable[[str, pd.DataFrame], None]] = None,
+                 on_data_ready: Optional[Callable[[str, Dict[str, pd.DataFrame]], None]] = None):
         """
         Initialize the iframe drop widget.
 
         Args:
-            on_dataframe_ready: Callback function when DataFrame is ready.
+            on_dataframe_ready: DEPRECATED. Legacy callback for single DataFrame.
                                Signature: callback(filename: str, df: pd.DataFrame) -> None
+            on_data_ready: New callback for full data dict.
+                          Signature: callback(filename: str, data: Dict[str, pd.DataFrame]) -> None
         """
         self.on_dataframe_ready = on_dataframe_ready
+        self.on_data_ready = on_data_ready
 
         # Use incrementing ID so we can track instances
         IFrameDropWidget._instance_counter += 1
         self._widget_id = f"iframe_drop_{IFrameDropWidget._instance_counter}"
+
+        # Data storage
+        self._data: Optional[Dict[str, pd.DataFrame]] = None
+        self._selected_key: Optional[str] = None
+        self._filename: Optional[str] = None
 
         self._create_widgets()
         self._setup_observers()
@@ -141,6 +189,15 @@ class IFrameDropWidget:
         # Status output for messages
         self.status_output = widgets.Output()
 
+        # Dropdown selector for multi-sheet files
+        self._selector = widgets.Dropdown(
+            options=[],
+            description='Select:',
+            disabled=True,
+            layout=widgets.Layout(display='none')
+        )
+        self._selector.observe(self._on_selection_change, names='value')
+
         # IFrame with embedded drop zone
         iframe_html = self._get_iframe_html()
         self.iframe_widget = widgets.HTML(value=iframe_html)
@@ -148,6 +205,7 @@ class IFrameDropWidget:
         # Main container (global listener handles all widgets)
         self.container = widgets.VBox([
             self.iframe_widget,
+            self._selector,
             self.status_output,
             self._file_name,
             self._file_content,
@@ -211,7 +269,7 @@ class IFrameDropWidget:
         <div class="icon">📁</div>
         <div class="title">Drop data file here</div>
         <div class="subtitle">Drag and drop to load directly</div>
-        <div class="info">CSV, XLSX, XLSM (max 50MB)</div>
+        <div class="info">CSV, Excel, Feather, Parquet (max 50MB)</div>
     </div>
 
     <script>
@@ -230,7 +288,7 @@ class IFrameDropWidget:
                 <div class="icon">📁</div>
                 <div class="title">Drop data file here</div>
                 <div class="subtitle">Drag and drop to load directly</div>
-                <div class="info">CSV, XLSX, XLSM (max 50MB)</div>
+                <div class="info">CSV, Excel, Feather, Parquet (max 50MB)</div>
             `;
         }
 
@@ -272,10 +330,10 @@ class IFrameDropWidget:
             console.log('IFRAME: File:', fileName, 'Size:', file.size);
 
             // Validate extension
-            const validExt = ['.csv', '.xlsx', '.xlsm'];
+            const validExt = ['.csv', '.xlsx', '.xlsm', '.xls', '.feather', '.parquet'];
             const hasValidExt = validExt.some(ext => fileNameLower.endsWith(ext));
             if (!hasValidExt) {
-                showStatus('❌ Invalid file type. Use CSV, XLSX, or XLSM', 'error');
+                showStatus('❌ Invalid file type. Use CSV, Excel, Feather, or Parquet', 'error');
                 setTimeout(resetDropzone, 3000);
                 return;
             }
@@ -342,6 +400,15 @@ class IFrameDropWidget:
         """Set up observers for receiving data from iframe."""
         self._file_name.observe(self._on_filename_change, names='value')
 
+    def _on_selection_change(self, change):
+        """Handle selection change in dropdown."""
+        new_key = change.get('new')
+        if new_key and self._data and new_key in self._data:
+            self._selected_key = new_key
+            df = self._data[new_key]
+            self._show_success(f"{self._filename} [{new_key}]", df.shape)
+            log(f'Selection changed to: {new_key}')
+
     def _on_filename_change(self, change):
         """Handle filename change (triggered when iframe sends file)."""
         filename = change.get('new', '')
@@ -357,25 +424,47 @@ class IFrameDropWidget:
             return
 
         try:
-            # Validate extension
             ext = '.' + filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
             if ext not in self.ALLOWED_EXTENSIONS:
                 self._show_error(f'Invalid file type: {ext}')
                 self._reset_inputs()
                 return
 
-            # Decode and parse
             content_bytes = base64.b64decode(content_b64)
             log(f'Decoded {len(content_bytes)} bytes')
 
-            df = self._parse_file(filename, content_bytes)
+            data = self._parse_file(filename, content_bytes)
 
-            if df is not None:
-                self._show_success(filename, df.shape)
-                log(f'DataFrame created: {df.shape}')
+            if data:
+                self._data = data
+                self._filename = filename
+                
+                keys = list(data.keys())
+                self._selector.options = keys
+                self._selector.value = keys[0]
+                self._selected_key = keys[0]
+                
+                if len(keys) > 1:
+                    self._selector.layout.display = 'block'
+                    self._selector.disabled = False
+                else:
+                    self._selector.layout.display = 'none'
+                
+                first_df = data[keys[0]]
+                self._show_success(f"{filename} [{keys[0]}]" if len(keys) > 1 else filename, first_df.shape)
+                log(f'Data loaded: {len(data)} sheet(s)')
 
+                if self.on_data_ready:
+                    self.on_data_ready(filename, data)
+                
                 if self.on_dataframe_ready:
-                    self.on_dataframe_ready(filename, df)
+                    import warnings
+                    warnings.warn(
+                        "on_dataframe_ready is deprecated. Use on_data_ready for full dict access.",
+                        DeprecationWarning,
+                        stacklevel=2
+                    )
+                    self.on_dataframe_ready(filename, first_df)
 
         except Exception as e:
             log(f'Error processing file: {str(e)}')
@@ -384,14 +473,68 @@ class IFrameDropWidget:
         finally:
             self._reset_inputs()
 
-    def _parse_file(self, filename: str, content: bytes) -> Optional[pd.DataFrame]:
-        """Parse file content into DataFrame."""
+    def _parse_file(self, filename: str, content: bytes) -> Dict[str, pd.DataFrame]:
+        """Parse file content into dict of DataFrames.
+        
+        Raises ImportError with helpful message if required dependency is missing.
+        """
         ext = '.' + filename.rsplit('.', 1)[-1].lower()
-
+        
         if ext == '.csv':
-            return pd.read_csv(io.BytesIO(content))
+            return {'data': pd.read_csv(io.BytesIO(content))}
+        
         elif ext in ('.xlsx', '.xlsm'):
-            return pd.read_excel(io.BytesIO(content))
+            try:
+                import openpyxl  # noqa: F401
+            except ImportError:
+                raise ImportError(
+                    f"Cannot read {ext} file: 'openpyxl' is not installed.\n\n"
+                    "Install it in this Jupyter kernel's environment:\n"
+                    "  !pip install openpyxl\n\n"
+                    "Then restart the kernel."
+                )
+            excel_file = pd.ExcelFile(io.BytesIO(content), engine='openpyxl')
+            return {sheet: pd.read_excel(excel_file, sheet_name=sheet) 
+                    for sheet in excel_file.sheet_names}
+        
+        elif ext == '.xls':
+            try:
+                import xlrd  # noqa: F401
+            except ImportError:
+                raise ImportError(
+                    "Cannot read .xls file: 'xlrd' is not installed.\n\n"
+                    "Install it in this Jupyter kernel's environment:\n"
+                    "  !pip install xlrd\n\n"
+                    "Then restart the kernel."
+                )
+            excel_file = pd.ExcelFile(io.BytesIO(content), engine='xlrd')
+            return {sheet: pd.read_excel(excel_file, sheet_name=sheet) 
+                    for sheet in excel_file.sheet_names}
+        
+        elif ext == '.feather':
+            try:
+                import pyarrow  # noqa: F401
+            except ImportError:
+                raise ImportError(
+                    "Cannot read .feather file: 'pyarrow' is not installed.\n\n"
+                    "Install it in this Jupyter kernel's environment:\n"
+                    "  !pip install pyarrow\n\n"
+                    "Then restart the kernel."
+                )
+            return {'data': pd.read_feather(io.BytesIO(content))}
+        
+        elif ext == '.parquet':
+            try:
+                import pyarrow  # noqa: F401
+            except ImportError:
+                raise ImportError(
+                    "Cannot read .parquet file: 'pyarrow' is not installed.\n\n"
+                    "Install it in this Jupyter kernel's environment:\n"
+                    "  !pip install pyarrow\n\n"
+                    "Then restart the kernel."
+                )
+            return {'data': pd.read_parquet(io.BytesIO(content))}
+        
         else:
             raise ValueError(f'Unsupported extension: {ext}')
 
@@ -434,6 +577,28 @@ class IFrameDropWidget:
     def widget(self):
         """Return the container widget for embedding."""
         return self.container
+
+    @property
+    def data(self) -> Optional[Dict[str, pd.DataFrame]]:
+        """Return all loaded DataFrames as dict."""
+        return self._data
+
+    @property
+    def selected_dataframe(self) -> Optional[pd.DataFrame]:
+        """Return currently selected DataFrame."""
+        if self._data and self._selected_key:
+            return self._data.get(self._selected_key)
+        return None
+
+    @property
+    def selected_key(self) -> Optional[str]:
+        """Return key of currently selected DataFrame."""
+        return self._selected_key
+
+    @property
+    def sheet_names(self) -> list:
+        """Return list of available sheet/data names."""
+        return list(self._data.keys()) if self._data else []
 
     def display(self):
         """Display the widget."""
