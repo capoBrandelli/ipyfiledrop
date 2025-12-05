@@ -1,0 +1,5 @@
+sensor_id,calibration_date,temp_offset,humidity_offset,location,status
+SENSOR-A,2024-01-01,0.1,-1.0,Lab A,Active
+SENSOR-B,2024-01-02,-0.2,0.5,Lab A,Active
+SENSOR-C,2024-01-01,0.0,0.0,Lab B,Active
+SENSOR-D,2024-01-03,0.15,-0.5,Lab B,Maintenance

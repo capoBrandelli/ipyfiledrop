@@ -1,0 +1,6 @@
+species,scientific_name,diet,conservation_status,avg_weight_kg,native_region
+Adelie,Pygoscelis adeliae,krill and fish,Least Concern,4.7,Antarctic Peninsula
+Chinstrap,Pygoscelis antarcticus,krill,Least Concern,4.5,Antarctic Peninsula
+Gentoo,Pygoscelis papua,fish and krill,Near Threatened,6.5,Sub-Antarctic Islands
+Emperor,Aptenodytes forsteri,fish and squid,Near Threatened,23.0,Antarctic Continent
+King,Aptenodytes patagonicus,fish and squid,Least Concern,14.0,Sub-Antarctic Islands

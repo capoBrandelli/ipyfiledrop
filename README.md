@@ -82,9 +82,13 @@ fd.remove("Test")      # Remove zone and clear data
 ```
 
 **Constructor:**
-- `FileDrop(*labels, retain_data=False)` → Create with named drop zones
+- `FileDrop(*labels, retain_data=False, extract_core=False, clean=None, cleaner=None, cleaners=None)`
   - `retain_data=True`: Files accumulate (useful for multi-file drops)
   - `retain_data=False` (default): Each drop replaces previous data
+  - `extract_core=True`: Automatically extract core data from messy files
+  - `clean`: Cleaning preset (`'none'`, `'minimal'`, `'standard'`, `'aggressive'`)
+  - `cleaner`: Custom cleaner function `(df, filename) -> df`
+  - `cleaners`: List of cleaner functions to apply in sequence
 
 **Methods:**
 - `display()` → Returns self for chaining
@@ -96,6 +100,8 @@ fd.remove("Test")      # Remove zone and clear data
 - `get_all_sheets(label)` → Alias for get_all_data()
 - `select_sheet(label, sheet_name)` → Select a specific sheet/file
 - `get_failed_imports(label)` → Get list of files that failed to import
+- `extract(label)` → Get ExtractedData with core, metadata, footer (requires `extract_core=True`)
+- `combine(label, add_source=False)` → Combine all DataFrames into one
 
 **Properties:**
 - `datasets` → Dict of `{label: {'filename': str, 'data': Dict[str, DataFrame], 'selected': str}}`
@@ -166,6 +172,91 @@ widget.clear_data()
 ```
 
 **Note:** `install_global_listener()` must be called BEFORE creating widgets. FileDrop handles this automatically.
+
+## Data Import Pipeline
+
+For messy files with headers, footers, and sparse data, use the data import pipeline to automatically extract, clean, and combine data.
+
+### Basic Usage
+
+```python
+from ipyfiledrop import FileDrop
+
+# Enable extraction and cleaning
+fd = FileDrop(
+    "Messy Data",
+    retain_data=True,        # Accumulate files
+    extract_core=True,       # Extract core data from messy files
+    clean="standard",        # Apply standard cleaning
+).display()
+
+# After dropping files:
+extracted = fd.extract("Messy Data")
+extracted.core        # Clean DataFrame
+extracted.metadata    # {'Report Date': '2024-01-15', ...}
+extracted.footer      # ['End of Report', ...]
+extracted.confidence  # 0.90
+
+# Combine multiple files
+df = fd.combine("Messy Data", add_source=True)
+```
+
+### Cleaning Presets
+
+| Preset | Cleaners Applied |
+|--------|------------------|
+| `'none'` | No cleaning |
+| `'minimal'` | normalize_columns, strip_whitespace |
+| `'standard'` | normalize_columns, strip_whitespace, drop_empty_rows, standardize_na |
+| `'aggressive'` | All cleaners including deduplicate, infer_types |
+
+### Custom Cleaners
+
+```python
+from ipyfiledrop import (
+    normalize_columns, make_normalize_columns,
+    strip_whitespace, make_strip_whitespace,
+    drop_empty_rows
+)
+
+# Use factory functions for customized cleaners
+fd = FileDrop("Data", cleaners=[
+    make_normalize_columns(preserve_case=True, preserve_dashes=True),
+    make_strip_whitespace(normalize_inner=True),
+    drop_empty_rows
+])
+```
+
+### Cleaner Options
+
+**`normalize_columns`** options:
+- `preserve_case=True`: Keep original case (default: lowercase)
+- `preserve_dashes=True`: Keep dashes `-` (default: replace with `_`)
+- `preserve_dots=True`: Keep dots `.` (default: replace with `_`)
+
+**`strip_whitespace`** options:
+- `normalize_inner=True`: Collapse multiple inner spaces to single space
+
+### Direct Pipeline Functions
+
+```python
+from ipyfiledrop import extract_core_data, clean_dataframe, combine_dataframes
+import pandas as pd
+
+# Load messy file
+raw = pd.read_csv('messy_file.csv', header=None)
+
+# Extract core data
+result = extract_core_data(raw)
+print(result.core.shape)      # (21, 6)
+print(result.metadata)        # {'Report Date': '2024-01-15'}
+
+# Clean
+cleaned = clean_dataframe(result.core, preset='standard')
+
+# Combine multiple DataFrames
+combined = combine_dataframes({'file1': df1, 'file2': df2}, add_source=True)
+```
 
 ## Supported Files
 

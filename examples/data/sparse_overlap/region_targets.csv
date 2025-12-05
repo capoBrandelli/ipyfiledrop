@@ -1,0 +1,6 @@
+region_code,year,target_amount,target_units,growth_target_pct,priority
+REG-NORTH,2024,835381.37,5274,18.8,Medium
+REG-SOUTH,2024,551413.14,6487,8.8,Medium
+REG-WEST,2024,597272.05,9432,15.2,Medium
+REG-CENTRAL,2024,578615.03,6116,19.5,High
+REG-PACIFIC,2024,834449.48,4388,8.4,Medium

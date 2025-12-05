@@ -1,0 +1,41 @@
+patient_id,age,sex,ethnicity,smoking_status,treatment_arm,site_id
+PT-0001,66,F,Caucasian,Never,Treatment A,SITE-01
+PT-0002,39,M,Other,Never,Treatment A,SITE-03
+PT-0003,44,M,Asian,Never,Placebo,SITE-03
+PT-0004,64,F,Other,Former,Treatment B,SITE-01
+PT-0005,66,F,Other,Never,Treatment B,SITE-01
+PT-0006,42,F,Asian,Former,Treatment A,SITE-02
+PT-0007,68,F,Hispanic,Never,Placebo,SITE-01
+PT-0008,48,F,Hispanic,Current,Treatment A,SITE-01
+PT-0009,33,F,Other,Never,Treatment A,SITE-01
+PT-0010,71,F,Other,Never,Placebo,SITE-03
+PT-0011,58,F,Other,Former,Placebo,SITE-02
+PT-0012,57,F,African American,Never,Treatment B,SITE-03
+PT-0013,32,F,Caucasian,Never,Placebo,SITE-02
+PT-0014,32,M,Caucasian,Former,Treatment B,SITE-01
+PT-0015,66,F,Other,Current,Treatment A,SITE-03
+PT-0016,27,M,Hispanic,Never,Treatment A,SITE-02
+PT-0017,56,F,African American,Current,Placebo,SITE-03
+PT-0018,40,M,Caucasian,Current,Treatment A,SITE-01
+PT-0019,30,F,Other,Current,Treatment A,SITE-03
+PT-0020,28,F,Asian,Current,Placebo,SITE-02
+PT-0021,72,F,Asian,Current,Treatment B,SITE-03
+PT-0022,31,F,Caucasian,Never,Placebo,SITE-02
+PT-0023,49,F,Hispanic,Current,Treatment A,SITE-02
+PT-0024,30,F,Other,Never,Treatment B,SITE-02
+PT-0025,44,M,Other,Former,Placebo,SITE-02
+PT-0026,58,M,Other,Current,Placebo,SITE-02
+PT-0027,34,M,Caucasian,Never,Treatment B,SITE-03
+PT-0028,35,M,African American,Never,Treatment B,SITE-03
+PT-0029,71,M,Hispanic,Former,Treatment B,SITE-03
+PT-0030,48,F,African American,Former,Treatment A,SITE-02
+PT-0031,50,M,Other,Never,Treatment B,SITE-03
+PT-0032,42,F,Other,Former,Treatment A,SITE-02
+PT-0033,33,F,Hispanic,Never,Placebo,SITE-03
+PT-0034,29,M,Asian,Current,Treatment A,SITE-03
+PT-0035,28,F,Other,Former,Treatment A,SITE-02
+PT-0036,31,M,Asian,Never,Treatment B,SITE-01
+PT-0037,30,M,Hispanic,Never,Treatment A,SITE-03
+PT-0038,69,F,Caucasian,Former,Treatment A,SITE-02
+PT-0039,32,F,Caucasian,Former,Treatment B,SITE-02
+PT-0040,63,F,Asian,Former,Placebo,SITE-03

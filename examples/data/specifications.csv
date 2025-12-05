@@ -1,0 +1,6 @@
+feature,lower_limit,upper_limit,unit,critical
+temperature,145.0,205.0,C,yes
+pressure,2.0,3.5,bar,yes
+viscosity,40.0,65.0,cP,no
+density,0.95,1.20,g/cm3,no
+ph_level,6.5,7.8,pH,yes

@@ -1,0 +1,8 @@
+type_name,category,typical_use,avg_insurance_cost,fuel_efficiency_class
+Sedan,passenger,daily commute,1200,high
+SUV,passenger,family travel,1500,medium
+Truck,utility,hauling and work,1100,low
+Sports,performance,recreation,2500,low
+Minivan,passenger,family transport,1300,medium
+Coupe,passenger,personal,1400,medium
+Hatchback,passenger,urban driving,1000,high

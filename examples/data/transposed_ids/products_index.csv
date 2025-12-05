@@ -1,0 +1,9 @@
+product_id,product_name,category,unit_price,weight_kg
+PROD-001,Widget Alpha,Electronics,29.99,0.45
+PROD-002,Widget Beta,Electronics,34.99,0.52
+PROD-003,Gadget Pro,Home,89.99,1.2
+PROD-004,Gadget Lite,Home,49.99,0.85
+PROD-005,Tool Master,Industrial,149.99,2.3
+PROD-006,Tool Basic,Industrial,79.99,1.75
+PROD-007,Component X,Electronics,12.99,0.15
+PROD-008,Component Y,Electronics,18.99,0.22

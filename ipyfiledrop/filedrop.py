@@ -3,16 +3,32 @@ FileDrop - Compact multi-file drop widget for Jupyter notebooks.
 
 Provides a high-level API for multiple drop zones with automatic
 global listener installation and DataFrame access.
+
+Includes data import pipeline for:
+- Core data extraction from messy files
+- Data cleaning and normalization
+- Combining multiple DataFrames
 """
 
 import logging
-from typing import Dict, Optional, List
+from typing import Callable, Dict, Optional, List, Union
 import pandas as pd
 import ipywidgets as widgets
 from IPython.display import display
 from .iframe_drop_widget import IFrameDropWidget
+from .pipeline import (
+    ExtractedData,
+    extract_core_data,
+    clean_dataframe,
+    combine_dataframes,
+    apply_cleaners,
+    CLEANING_PRESETS,
+)
 
 logger = logging.getLogger(__name__)
+
+# Type alias for cleaner functions
+CleanerFunc = Callable[[pd.DataFrame, Optional[str]], pd.DataFrame]
 
 
 class FileDrop:
@@ -43,7 +59,13 @@ class FileDrop:
         failed = fd.get_failed_imports("Data")
     """
 
-    def __init__(self, *labels, retain_data: bool = False):
+    def __init__(self, 
+                 *labels, 
+                 retain_data: bool = False,
+                 extract_core: bool = False,
+                 clean: str = None,
+                 cleaner: CleanerFunc = None,
+                 cleaners: List[CleanerFunc] = None):
         """
         Initialize FileDrop with named drop zones.
 
@@ -51,15 +73,27 @@ class FileDrop:
             *labels: Variable number of drop zone labels (e.g., "Train", "Test")
             retain_data: If True, accumulate files in each zone (show Clear button).
                         If False (default), each drop replaces previous data.
+            extract_core: If True, automatically extract core data from messy files
+                         using density analysis and header detection.
+            clean: Cleaning preset name ('none', 'minimal', 'standard', 'aggressive').
+                  See CLEANING_PRESETS for details.
+            cleaner: Custom cleaner function: (df, filename) -> df
+            cleaners: List of cleaner functions to apply in sequence
         """
         # Auto-install global listener (safe if already installed)
         IFrameDropWidget.install_global_listener()
 
         self._retain_data = retain_data
+        self._extract_core = extract_core
+        self._clean_preset = clean
+        self._cleaner = cleaner
+        self._cleaners = cleaners
+        
         self._widgets = {}      # label -> IFrameDropWidget
         self._datasets = {}     # label -> {'filename': str, 'data': Dict[str, DataFrame], 'selected': str}
         self._labels = []       # Ordered list of labels
         self._container = widgets.VBox()  # Main container for embedding
+        self._extracted = {}    # label -> {key: ExtractedData} (when extract_core=True)
 
         # Create initial widgets
         for label in labels:
@@ -71,14 +105,58 @@ class FileDrop:
     def _add_widget(self, label):
         """Create IFrameDropWidget for a label with callback."""
         def on_data_ready(filename, data):
-            # Update datasets - store reference to widget's accumulated data
-            widget_data = self._widgets[label].data
+            # Apply pipeline processing to each DataFrame
+            processed_data = {}
+            extracted_results = {}
+            
+            for key, df in data.items():
+                # Step 1: Extract core if enabled
+                if self._extract_core:
+                    try:
+                        extracted = extract_core_data(df)
+                        extracted_results[key] = extracted
+                        df = extracted.core
+                        logger.debug(f"FileDrop: Extracted core from '{key}': {df.shape}, confidence={extracted.confidence:.2f}")
+                    except Exception as e:
+                        logger.warning(f"FileDrop: Core extraction failed for '{key}': {e}")
+                
+                # Step 2: Apply cleaning
+                try:
+                    if self._cleaners:
+                        df = apply_cleaners(df, self._cleaners, filename)
+                    elif self._cleaner:
+                        df = self._cleaner(df, filename)
+                    elif self._clean_preset and self._clean_preset != 'none':
+                        df = clean_dataframe(df, preset=self._clean_preset, filename=filename)
+                except Exception as e:
+                    logger.warning(f"FileDrop: Cleaning failed for '{key}': {e}")
+                
+                processed_data[key] = df
+            
+            # Store extracted results for later access
+            if self._extract_core and extracted_results:
+                if label not in self._extracted:
+                    self._extracted[label] = {}
+                self._extracted[label].update(extracted_results)
+            
+            # Update widget's data with processed DataFrames
+            widget = self._widgets[label]
+            for key, df in processed_data.items():
+                widget._data[key] = df
+            
+            # Update selector options if needed
+            if len(widget._data) > 1:
+                widget._selector.options = list(widget._data.keys())
+                if widget._selector.value not in widget._data:
+                    widget._selector.value = list(widget._data.keys())[0]
+            
+            # Update datasets tracking
             self._datasets[label] = {
                 'filename': filename,
-                'data': widget_data,
-                'selected': self._widgets[label].selected_key
+                'data': widget._data,
+                'selected': widget.selected_key
             }
-            logger.debug(f"FileDrop: Loaded '{filename}' into '{label}' ({len(data)} new, {len(widget_data)} total)")
+            logger.debug(f"FileDrop: Loaded '{filename}' into '{label}' ({len(data)} new, {len(widget._data)} total)")
 
         widget = IFrameDropWidget(on_data_ready=on_data_ready, retain_data=self._retain_data)
         self._widgets[label] = widget
@@ -307,6 +385,103 @@ class FileDrop:
     def retain_data(self) -> bool:
         """Return whether retain_data mode is enabled."""
         return self._retain_data
+
+    def extract(self, label: str, key: str = None) -> Union[ExtractedData, Dict[str, ExtractedData]]:
+        """
+        Get extraction results for a label.
+        
+        Requires extract_core=True when creating the FileDrop.
+        
+        Args:
+            label: Drop zone label
+            key: Optional specific key; if None, returns single result or dict
+            
+        Returns:
+            Single ExtractedData if key provided or only one result,
+            else dict of all results
+            
+        Raises:
+            KeyError: If label or key doesn't exist
+            ValueError: If extract_core not enabled or no data
+            
+        Example:
+            fd = FileDrop("Data", extract_core=True)
+            # ... drop file ...
+            result = fd.extract("Data")
+            result.core  # Cleaned DataFrame
+            result.metadata  # {'Report Date': '2024-01-15', ...}
+        """
+        if label not in self._widgets:
+            raise KeyError(f"Label '{label}' not found")
+        if not self._extract_core:
+            raise ValueError("extract_core not enabled. Create FileDrop with extract_core=True")
+        if label not in self._extracted or not self._extracted[label]:
+            raise ValueError(f"No extracted data for '{label}'")
+        
+        if key is not None:
+            if key not in self._extracted[label]:
+                raise KeyError(f"Key '{key}' not found in '{label}'")
+            return self._extracted[label][key]
+        
+        # Return single result if only one, else dict
+        results = self._extracted[label]
+        if len(results) == 1:
+            return list(results.values())[0]
+        return results
+
+    def combine(self, 
+                label: str,
+                combiner: Callable[[Dict[str, pd.DataFrame]], pd.DataFrame] = None,
+                add_source: bool = False,
+                ignore_index: bool = True,
+                include_metadata: List[str] = None) -> pd.DataFrame:
+        """
+        Combine all DataFrames for a label into one.
+        
+        Args:
+            label: Drop zone label
+            combiner: Custom combiner function: (data_dict) -> DataFrame
+            add_source: Add '_source' column with original key
+            ignore_index: Reset index after concat
+            include_metadata: Metadata keys to add as columns (requires extract_core=True)
+            
+        Returns:
+            Combined DataFrame
+            
+        Raises:
+            KeyError: If label doesn't exist
+            ValueError: If no data or include_metadata without extract_core
+            
+        Example:
+            df = fd.combine("Data", add_source=True)
+            df = fd.combine("Data", include_metadata=["date", "author"])
+        """
+        if label not in self._widgets:
+            raise KeyError(f"Label '{label}' not found")
+        
+        data = self._widgets[label].data
+        if not data:
+            raise ValueError(f"No data for '{label}'")
+        
+        # Use custom combiner if provided
+        if combiner is not None:
+            return combiner(data)
+        
+        # Get metadata if requested
+        metadata = None
+        if include_metadata:
+            if not self._extract_core:
+                raise ValueError("include_metadata requires extract_core=True")
+            if label in self._extracted:
+                metadata = {k: v.metadata for k, v in self._extracted[label].items()}
+        
+        return combine_dataframes(
+            data,
+            add_source=add_source,
+            ignore_index=ignore_index,
+            metadata=metadata,
+            include_metadata=include_metadata
+        )
 
     def __repr__(self):
         loaded = [l for l in self._labels if self._widgets.get(l, {}) and self._widgets[l].data]

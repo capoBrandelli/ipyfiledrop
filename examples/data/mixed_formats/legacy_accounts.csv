@@ -1,0 +1,21 @@
+account_num,account_holder,balance,status,account_type,opened_date
+1001,Alice Johnson,4863.98,active,money_market,2020-01-01
+1002,Bob Smith,4082.4,active,money_market,2020-01-16
+1003,Carol White,13931.86,inactive,savings,2020-01-31
+1004,David Lee,13428.25,suspended,money_market,2020-02-15
+1005,Eve Brown,10407.51,suspended,savings,2020-03-01
+1006,Frank Garcia,8719.83,active,money_market,2020-03-16
+1007,Grace Miller,8431.01,active,checking,2020-03-31
+1008,Henry Davis,3551.15,inactive,money_market,2020-04-15
+1009,Ivy Wilson,11661.44,active,savings,2020-04-30
+1010,Jack Moore,13495.34,active,money_market,2020-05-15
+1011,Karen Taylor,10963.93,active,money_market,2020-05-30
+1012,Leo Anderson,7732.32,active,money_market,2020-06-14
+1013,Mia Thomas,6912.09,active,money_market,2020-06-29
+1014,Noah Jackson,12135.24,suspended,money_market,2020-07-14
+1015,Olivia Harris,12750.05,inactive,checking,2020-07-29
+1016,Peter Martin,3822.5,inactive,money_market,2020-08-13
+1017,Quinn Thompson,14451.43,active,savings,2020-08-28
+1018,Rachel Robinson,1354.32,inactive,checking,2020-09-12
+1019,Sam Clark,4702.65,active,savings,2020-09-27
+1020,Tina Lewis,5026.38,active,savings,2020-10-12

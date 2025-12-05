@@ -1,0 +1,8 @@
+planet_name,distance_au,diameter_km,orbital_period_days,type,has_rings
+Mercury,0.39,4879,88,rocky,no
+Venus,0.72,12104,225,rocky,no
+Mars,1.52,6779,687,rocky,no
+Jupiter,5.20,139820,4333,gas_giant,yes
+Saturn,9.58,116460,10759,gas_giant,yes
+Neptune,30.07,49528,60190,ice_giant,yes
+Uranus,19.22,50724,30687,ice_giant,yes

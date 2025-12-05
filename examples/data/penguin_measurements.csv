@@ -1,0 +1,10 @@
+island,year,Adelie,Chinstrap,Gentoo,avg_bill_length_mm,avg_flipper_length_mm,avg_body_mass_g
+Torgersen,2007,20,0,0,38.9,189.5,3750
+Torgersen,2008,16,0,0,39.2,190.1,3820
+Torgersen,2009,16,0,0,38.6,188.9,3680
+Biscoe,2007,18,0,22,45.2,210.3,4950
+Biscoe,2008,18,0,24,44.8,209.5,4880
+Biscoe,2009,8,0,30,46.1,212.0,5100
+Dream,2007,15,18,0,42.1,195.8,3920
+Dream,2008,16,18,0,41.8,194.5,3850
+Dream,2009,10,16,0,43.0,196.2,3980

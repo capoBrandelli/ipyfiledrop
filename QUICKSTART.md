@@ -85,6 +85,24 @@ accordion.set_title(0, "Data Upload")
 display(accordion)
 ```
 
+## Data Import Pipeline
+
+For messy files with headers, footers, and sparse data:
+
+```python
+# Extract core data and clean automatically
+fd = FileDrop("Messy Data", extract_core=True, clean="standard").display()
+
+# After dropping a messy file:
+extracted = fd.extract("Messy Data")
+extracted.core        # Clean DataFrame
+extracted.metadata    # {'Report Date': '2024-01-15', ...}
+```
+
+**Cleaning presets:** `'none'`, `'minimal'`, `'standard'`, `'aggressive'`
+
+See [DATA_IMPORT_PIPELINE.md](DATA_IMPORT_PIPELINE.md) for advanced usage.
+
 ## Full Documentation
 
 See [README.md](README.md) for complete API reference and troubleshooting.

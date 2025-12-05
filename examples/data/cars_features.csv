@@ -1,0 +1,16 @@
+car_id,make,model,year,mpg,horsepower,weight_lbs,Sedan,SUV,Truck,Sports
+C001,Toyota,Camry,2022,32,203,3310,1,0,0,0
+C002,Ford,F-150,2022,20,400,4705,0,0,1,0
+C003,BMW,X5,2022,23,335,4813,0,1,0,0
+C004,Porsche,911,2022,20,379,3354,0,0,0,1
+C005,Honda,Accord,2023,33,192,3239,1,0,0,0
+C006,Chevrolet,Silverado,2023,19,355,4520,0,0,1,0
+C007,Tesla,Model Y,2023,120,346,4398,0,1,0,0
+C008,Ford,Mustang,2023,22,450,3832,0,0,0,1
+C009,Toyota,RAV4,2022,30,203,3715,0,1,0,0
+C010,Nissan,Altima,2023,32,188,3212,1,0,0,0
+C011,Ram,1500,2022,21,395,4798,0,0,1,0
+C012,Mazda,MX-5,2023,26,181,2341,0,0,0,1
+C013,Hyundai,Tucson,2023,29,187,3649,0,1,0,0
+C014,Mercedes,E-Class,2022,25,255,4023,1,0,0,0
+C015,Jeep,Wrangler,2023,20,285,4439,0,1,0,0

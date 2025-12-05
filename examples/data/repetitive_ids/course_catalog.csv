@@ -1,0 +1,7 @@
+course_id,course_name,department,credits,instructor,max_enrollment,room
+COURSE-101,Intro to Python,CS,3,Dr. Smith,25,Lab A
+COURSE-102,Data Structures,CS,4,Dr. Jones,29,Room 303
+COURSE-103,Statistics,MATH,3,Dr. Brown,29,Lab B
+COURSE-104,Machine Learning,CS,4,Dr. Smith,29,Room 101
+COURSE-105,Linear Algebra,MATH,3,Dr. Chen,41,Room 202
+COURSE-106,Database Systems,CS,4,Dr. Patel,28,Lab A
